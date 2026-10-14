@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لعبة الذاكرة — My AI Study</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06060d;--surface:#10163a;--surface2:#171f4d;--line:#252d66;--line2:#35408a;
+  --text:#eef0fc;--muted:#9ba4d6;--violet:#8b6cff;--violet-d:#6a4df0;--ok:#3fdc9b;--warn:#ffb757;
+  --font:"IBM Plex Sans Arabic",Tahoma,system-ui,sans-serif;
+  color-scheme:dark;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;font-family:var(--font);line-height:1.6;color:var(--text);background:var(--bg);
+  background-image:radial-gradient(800px 480px at 90% -10%,rgba(106,77,240,.25),transparent 62%),linear-gradient(180deg,#06060d,#0a1029);background-attachment:fixed;min-height:100vh;
+  -webkit-tap-highlight-color:transparent;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--violet);outline-offset:3px}
+main{max-width:640px;margin:0 auto;padding:22px 14px 40px}
+h1{font-size:clamp(24px,5vw,32px);margin:0 0 4px;line-height:1.25}
+.sub{color:var(--muted);margin:0 0 16px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{padding:7px 18px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--muted)}
+.chip:hover{border-color:var(--violet);color:#fff}
+.chip.on{background:rgba(139,108,255,.18);border-color:var(--violet);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.stats div{padding:8px 10px;border-radius:14px;background:rgba(16,22,58,.85);border:1px solid var(--line);text-align:center}
+.stats b{display:block;font-size:20px;line-height:1.3}
+.stats span{font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:10px;perspective:900px}
+.card{position:relative;aspect-ratio:1;border:0;padding:0;background:none;border-radius:16px}
+.in{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .35s}
+.card.flip .in{transform:rotateY(180deg)}
+.f,.b{position:absolute;inset:0;border-radius:16px;display:grid;place-items:center;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.b{background:linear-gradient(145deg,var(--surface2),var(--surface));border:1px solid var(--line2);font-size:22px;color:var(--violet)}
+.f{transform:rotateY(180deg);background:#161d52;border:1px solid var(--line2);font-size:clamp(26px,8vw,40px)}
+.card.ok .f{background:rgba(63,220,155,.14);border-color:var(--ok)}
+.card:not(.flip):hover .b{border-color:var(--violet)}
+.row{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.btn{padding:11px 24px;border-radius:14px;border:1px solid var(--line2);background:var(--surface2);font-weight:500}
+.btn.primary{background:linear-gradient(145deg,var(--violet),var(--violet-d));border-color:transparent;color:#fff;font-weight:600;box-shadow:0 8px 24px rgba(106,77,240,.35)}
+a.link{color:var(--muted);font-size:14px;text-decoration:none;border-bottom:1px dotted var(--muted)}
+.overlay{position:fixed;inset:0;background:rgba(3,3,9,.75);display:grid;place-items:center;padding:20px;z-index:20;backdrop-filter:blur(3px)}
+.modal{width:min(380px,100%);background:var(--surface);border:1px solid var(--line2);border-radius:22px;padding:24px;text-align:center}
+.modal h2{margin:0 0 6px;font-size:24px}
+.stars{font-size:34px;letter-spacing:6px;color:var(--warn);margin:6px 0}
+.modal p{margin:4px 0;color:var(--muted)}
+.modal .new{color:var(--ok);font-weight:600}
+@media (max-width:420px){.stats b{font-size:17px}.grid{gap:8px}}
+@media (prefers-reduced-motion:reduce){.in{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>لعبة الذاكرة</h1>
+  <p class="sub">اقلب بطاقتين وابحث عن الأزواج المتطابقة بأقل عدد من المحاولات.</p>
+  <div class="bar" id="levels" role="group" aria-label="المستوى"></div>
+  <div class="stats">
+    <div><b id="sMoves">0</b><span>المحاولات</span></div>
+    <div><b id="sTime">0:00</b><span>الوقت</span></div>
+    <div><b id="sPairs">0/0</b><span>الأزواج</span></div>
+    <div><b id="sBest">-</b><span>أفضل نتيجة</span></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="row"><button class="btn primary" id="again">لعبة جديدة</button></div>
+
+</main>
+<div id="layer"></div>
+<script>
+(function(){
+'use strict';
+const SYMS=['📚','🧠','✏️','🔬','💡','🎓','📐','🧪','🌍','⏰','💻','🎯'];
+const LEVELS={easy:{name:'سهل',pairs:6,cols:4},mid:{name:'متوسط',pairs:8,cols:4},hard:{name:'صعب',pairs:12,cols:6}};
+const KEY='myaistudy.game.best';
+let best={}; try{ best=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){ best={}; }
+let level='easy', cards=[], open=[], lock=false, moves=0, matched=0, secs=0, timer=null, started=false;
+const $=s=>document.querySelector(s);
+const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function saveBest(){ try{ localStorage.setItem(KEY,JSON.stringify(best)); }catch(e){} }
+function renderLevels(){
+  $('#levels').innerHTML=Object.entries(LEVELS).map(([k,l])=>`<button class="chip ${k===level?'on':''}" data-l="${k}" aria-pressed="${k===level}">${l.name}</button>`).join('');
+}
+function updateStats(){
+  const L=LEVELS[level];
+  $('#sMoves').textContent=moves; $('#sTime').textContent=fmt(secs); $('#sPairs').textContent=matched+'/'+L.pairs;
+  const b=best[level]; $('#sBest').textContent=b?b.moves+' محاولة':'-';
+}
+function newGame(){
+  clearInterval(timer); timer=null; started=false;
+  const L=LEVELS[level];
+  cards=shuffle(SYMS.slice(0,L.pairs).flatMap(s=>[s,s])).map((s,i)=>({id:i,sym:s,open:false,done:false}));
+  open=[]; lock=false; moves=0; matched=0; secs=0;
+  const g=$('#grid'); g.style.setProperty('--cols',L.cols);
+  g.innerHTML=cards.map(c=>`<button class="card" data-i="${c.id}" aria-label="بطاقة ${c.id+1}، مقلوبة"><span class="in"><span class="b" aria-hidden="true">؟</span><span class="f" aria-hidden="true">${c.sym}</span></span></button>`).join('');
+  renderLevels(); updateStats();
+}
+function setCard(i,flipped){
+  const el=$('#grid').children[i], c=cards[i];
+  c.open=flipped; el.classList.toggle('flip',flipped);
+  el.setAttribute('aria-label','بطاقة '+(i+1)+(flipped?'، '+c.sym:'، مقلوبة'));
+}
+function startClock(){
+  if(started) return; started=true;
+  timer=setInterval(()=>{ secs++; $('#sTime').textContent=fmt(secs); },1000);
+}
+function pick(i){
+  const c=cards[i];
+  if(lock||c.open||c.done) return;
+  startClock(); setCard(i,true); open.push(i);
+  if(open.length<2) return;
+  moves++; updateStats();
+  const [a,b]=open;
+  if(cards[a].sym===cards[b].sym){
+    [a,b].forEach(k=>{ cards[k].done=true; $('#grid').children[k].classList.add('ok'); });
+    open=[]; matched++; updateStats();
+    if(matched===LEVELS[level].pairs) win();
+  } else {
+    lock=true;
+    setTimeout(()=>{ setCard(a,false); setCard(b,false); open=[]; lock=false; },800);
+  }
+}
+function win(){
+  clearInterval(timer); timer=null;
+  const P=LEVELS[level].pairs;
+  const stars=moves<=Math.ceil(P*1.6)?3:moves<=Math.ceil(P*2.4)?2:1;
+  const prev=best[level]; const isNew=!prev||moves<prev.moves||(moves===prev.moves&&secs<prev.secs);
+  if(isNew){ best[level]={moves,secs}; saveBest(); }
+  updateStats();
+  const host=document.createElement('div'); host.className='overlay';
+  host.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="wt"><h2 id="wt">أحسنت!</h2><div class="stars" aria-label="${stars} نجوم">${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</div><p>أنهيت المستوى ${LEVELS[level].name} في ${moves} محاولة خلال ${fmt(secs)}</p>${isNew?'<p class="new">نتيجة جديدة هي الأفضل!</p>':''}<div class="row"><button class="btn primary" id="playAgain">العب مرة أخرى</button></div></div>`;
+  $('#layer').appendChild(host);
+  const b=host.querySelector('#playAgain'); b.focus();
+  b.onclick=()=>{ host.remove(); newGame(); };
+}
+$('#grid').addEventListener('click',e=>{ const b=e.target.closest('.card'); if(b) pick(+b.dataset.i); });
+$('#levels').addEventListener('click',e=>{ const b=e.target.closest('[data-l]'); if(b){ level=b.dataset.l; newGame(); } });
+$('#again').addEventListener('click',newGame);
+newGame();
+})();
+</script>
+</body>
+</html>
